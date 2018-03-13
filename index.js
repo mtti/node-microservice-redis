@@ -14,48 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+const _ = require('lodash');
 const Redis = require('ioredis');
 
 module.exports = {
   configure: (config) => {
-    config.redisMode = config.redisMode || 'standard';
+    config.redisOptions = config.redisOptions || {};
 
-    if (config.redisMode === 'standard') {
-      if (config.redisOptions) {
-        return;
-      }
-
-      if (config.redisServer) {
-        return;
-      }
-
-      if (process.env.REDIS_SERVER) {
-        config.dbServer = process.env.REDIS_SERVER;
-      } else {
-        throw new Error(
-          'Either config.redisOptions, config.redisServer or REDIS_SERVER is required');
-      }
-    } else if (config.redisMode === 'cluster') {
-      if (!config.redisNodes || !config.redisClusterOptions) {
-        throw new Error('config.redisNodes and config.redisClusterOptions are required');
-      }
-    } else {
-      throw new Error(`Unsupported Redis mode: ${config.redisMode}`);
+    if (process.env.REDIS_SERVER) {
+      const parts = process.env.REDIS_SERVER.split(':');
+      config.redisOptions.host = parts[0];
+      config.redisOptions.port = parts[1];
     }
+
+    const redisOptions = {};
+    if (config.name) {
+      redisOptions.keyPrefox = `${config.name}:`;
+    }
+    _.merge(redisOptions, config.redisOptions);
+
+    config.redisOptions = redisOptions;
   },
 
   init: (service) => {
-    if (service.config.redisMode === 'standard') {
-      if (service.config.redisOptions) {
-        service.redis = new Redis(service.config.redisOptions);
-      } else if (service.config.redisServer) {
-        service.redis = new Redis(service.config.redisServer);
-      } else {
-        throw new Error('Either config.redisOptions or config.redisServer is required');
-      }
-    } else if (service.config.redisMode === 'cluster') {
-      service.redis = new Redis.Cluster(config.redisNodes, config.redisClusterOptions);
-    }
+    service.redis = new Redis(service.config.redisOptions);
 
     let connected = false;
 

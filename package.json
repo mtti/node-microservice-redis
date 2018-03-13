@@ -1,12 +1,13 @@
 {
   "name": "@mtti/microservice-redis",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Redis plugin for @mtti/microservice",
   "author": "Matti Hiltunen",
   "license": "Apache-2.0",
   "repository": "github:mtti/node-microservice-redis",
   "main": "index.js",
   "dependencies": {
-    "ioredis": "3.2.2"
+    "ioredis": "3.2.2",
+    "lodash": "4.17.5"
   }
 }
