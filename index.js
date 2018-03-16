@@ -37,17 +37,18 @@ module.exports = {
   },
 
   init: (service) => {
-    service.redis = new Redis(service.config.redisOptions);
+    const redisClient = new Redis(service.config.redisOptions);
+    service.redisClient = redisClient;
 
     let connected = false;
 
     return new Promise((resolve) => {
-      service.redis.on('connect', () => service.logger.info('Redis connect'));
-      service.redis.on('reconnecting', () => service.logger.info('Redis reconnecting'));
-      service.redis.on('error', (error) => service.logger.error(`Redis error: ${error}`));
-      service.redis.on('end', () => service.logger.info('Redis end'));
-      service.redis.on('warning', () => service.logger.info('Redis warning'));
-      service.redis.on('ready', () => {
+      redisClient.on('connect', () => service.logger.info('Redis connect'));
+      redisClient.on('reconnecting', () => service.logger.info('Redis reconnecting'));
+      redisClient.on('error', (error) => service.logger.error(`Redis error: ${error}`));
+      redisClient.on('end', () => service.logger.info('Redis end'));
+      redisClient.on('warning', () => service.logger.info('Redis warning'));
+      redisClient.on('ready', () => {
         service.logger.info('Redis ready');
         if (!connected) {
           connected = true;
