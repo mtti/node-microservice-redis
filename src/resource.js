@@ -56,37 +56,11 @@ class RedisResource {
     this._redisClient = redisClient;
     this._name = options.name;
     this._expire = options.expire || 0;
+    this._logger = options.logger;
 
-    if (options.logger) {
-      this._logger = options.logger;
-    }
-
-    this._defaultBodySchema = options.defaultBodySchema;
-    this._jsonValidation = options.jsonValidation || 'permissive';
-    this._jsonSchemas = options.jsonSchemas || {};
+    this._schemaRef = options.schemaRef;
+    this._jsonSchemas = options.jsonSchemas || [];
     this._actions = [];
-
-    if (options.defaultActions !== false) {
-      if (this._jsonValidation === 'strict' && !this._defaultBodySchema) {
-        throw new Error('defaultBodySchema is required with defaultActions and strict validation');
-      }
-
-      const getAction = new InstanceAction('GET', this._get.bind(this));
-      const putAction = new InstanceAction('PUT', this._put.bind(this))
-        .setLoadInstance(false)
-        .setBodySchema(this._defaultBodySchema);
-      const patchAction = new InstanceAction('PATCH', this._patch.bind(this))
-        .setBodySchema(this._defaultBodySchema);
-      const deleteAction = new InstanceAction('DELETE', this._delete.bind(this))
-        .setLoadInstance(false);
-
-      Array.prototype.push.apply(this._actions, [
-        getAction,
-        putAction,
-        patchAction,
-        deleteAction,
-      ]);
-    }
 
     if (options.actions) {
       Array.prototype.push.apply(this._actions, this._model.actions);
@@ -94,39 +68,39 @@ class RedisResource {
   }
 
   start() {
+    const adapter = {
+      load: this._load.bind(this),
+      toJSON: this._toJSON.bind(this),
+      upsert: this._upsert.bind(this),
+      delete: this._delete.bind(this),
+    };
+
     const serverOptions = {
-      instanceLoader: this._instanceLoader.bind(this),
-      jsonValidation: this._jsonValidation,
+      adapter,
       jsonSchemas: this._jsonSchemas,
+      schemaRef: this._schemaRef,
       actions: this._actions,
       logger: this._logger,
     };
-    this._server = new ResourceServer(
-      this._natsClient,
-      this._name,
-      serverOptions
-    );
+    this._server = new ResourceServer(this._natsClient, this._name, serverOptions);
     this._server.start();
   }
 
-  _getKey(id) {
-    return `${this._name}:${id}`;
-  }
-
-  _instanceLoader(id) {
-    if (!id) {
-      return Promise.resolve(null);
-    }
+  _load(id) {
     return this._redisClient.get(this._getKey(id))
       .then((rawBody) => {
         if (!rawBody) {
-          throw createError(404);
+          return null;
         }
         return JSON.parse(rawBody);
       });
   }
 
-  _stringifyAndSet(id, body) {
+  _toJSON(instance) {
+    return instance;
+  }
+
+  _upsert(id, body) {
     const bodyCopy = _.cloneDeep(body);
 
     if (id) {
@@ -147,30 +121,12 @@ class RedisResource {
       .then(() => bodyCopy);
   }
 
-  _get(instance) {
-    return instance;
-  }
-
-  _put(id, body) {
-    if (!body) {
-      return Promise.reject(createError(400));
-    }
-    return this._stringifyAndSet(id, body);
-  }
-
-  _patch(instance, changes) {
-    if (!changes) {
-      return Promise.reject(createError(400));
-    }
-
-    _.merge(instance, changes);
-
-    return this._stringifyAndSet(instance.id, body);
-  }
-
   _delete(id) {
-    return this._redisClient.del(this._getKey(id))
-      .then(() => ({ result: 'OK' }));
+    return this._redisClient.del(this._getKey(id));
+  }
+
+  _getKey(id) {
+    return `${this._name}:${id}`;
   }
 }
 
